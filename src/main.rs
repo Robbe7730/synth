@@ -1,11 +1,10 @@
-use std::{error::Error, io::Write, sync::{Arc, Mutex}};
+use std::{error::Error, io::Write, sync::{Arc, Mutex, atomic::AtomicBool}};
 
 use midir::MidiInput;
-use rodio::{mixer::Mixer, source::SineWave};
+use note_source::NoteSource;
+use rodio::mixer::Mixer;
 
-fn midi_key_to_freq(key: u8) -> f32 {
-    return f32::powf(2.0, f32::from(i16::from(key) - 69) / 12.0) * 440.0;
-}
+mod note_source;
 
 fn midi_callback(_timestamp: u64, data: &[u8], mixer_mutex: &mut Arc<Mutex<Mixer>>) {
     let command: u8 = data[0];
@@ -18,10 +17,11 @@ fn midi_callback(_timestamp: u64, data: &[u8], mixer_mutex: &mut Arc<Mutex<Mixer
         0x90 => {
             let key = data[1];
             let velocity = data[2];
-            let freq = midi_key_to_freq(key);
-            println!("Note {} ON with velocity {} f={}", key, velocity, freq);
+            println!("Note {} ON with velocity {}", key, velocity);
             let mixer = mixer_mutex.lock().unwrap();
-            mixer.add(SineWave::new(freq));
+            let flag = Arc::new(AtomicBool::new(false));
+            let note = NoteSource::from_midi(key, velocity, flag);
+            mixer.add(note);
         }
         _ => println!("Unknown MIDI command 0x{:02x}", command)
     }
@@ -67,6 +67,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         midi_callback,
         mixer_mutex,
     )?;
+
+    // midi_callback(0, &[0x90, 60, 60], &mut mixer_mutex);
+
+    // thread::sleep(Duration::from_secs(1));
+
+    // midi_callback(0, &[0x80, 60, 60], &mut mixer_mutex);
 
     loop {}
 }
