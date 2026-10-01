@@ -4,7 +4,7 @@ use midir::MidiInput;
 use note_manager::NoteManager;
 use rodio::mixer::Mixer;
 
-mod note_source;
+mod note;
 mod note_manager;
 
 fn midi_callback(_timestamp: u64, data: &[u8], (mixer_mutex, note_mgr_mutex): &mut (Arc<Mutex<Mixer>>, Arc<Mutex<NoteManager>>)) {

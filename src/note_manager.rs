@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
-use crate::note_source::NoteSource;
+use crate::note::Note;
 
 pub struct NoteManager {
     note_flags: HashMap<u8, Arc<AtomicBool>>
@@ -13,14 +13,14 @@ impl NoteManager {
         }
     }
 
-    pub fn start(&mut self, key: u8, velocity: u8) -> NoteSource {
+    pub fn start(&mut self, key: u8, velocity: u8) -> Note {
         if self.note_flags.contains_key(&key) {
             self.note_flags.get(&key).unwrap().store(true, Ordering::SeqCst);
         }
 
         let flag = Arc::new(AtomicBool::new(false));
         self.note_flags.insert(key, flag.clone());
-        NoteSource::from_midi(key, velocity, flag)
+        Note::from_midi(key, velocity, flag)
     }
 
     pub fn stop(&mut self, key: u8) {

@@ -2,7 +2,7 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
 use rodio::{Sample, Source, source::{Amplify, SineWave, Stoppable}};
 
-pub struct NoteSource {
+pub struct Note {
     inner: Stoppable<Amplify<SineWave>>,
     stop: Arc<AtomicBool>,
 }
@@ -11,9 +11,9 @@ fn midi_key_to_freq(key: u8) -> f32 {
     return f32::powf(2.0, f32::from(i16::from(key) - 69) / 12.0) * 440.0;
 }
 
-impl NoteSource {
+impl Note {
     pub fn from_midi(key: u8, velocity: u8, stop: Arc<AtomicBool>) -> Self {
-        NoteSource { 
+        Note { 
             inner: SineWave::new(midi_key_to_freq(key))
                 .amplify(f32::from(velocity) / 64.0)
                 .stoppable(),
@@ -22,7 +22,7 @@ impl NoteSource {
     }
 }
 
-impl Source for NoteSource {
+impl Source for Note {
     fn current_span_len(&self) -> Option<usize> {
         self.inner.current_span_len()
     }
@@ -44,7 +44,7 @@ impl Source for NoteSource {
     }
 }
 
-impl Iterator for NoteSource {
+impl Iterator for Note {
     type Item = Sample;
 
     fn next(&mut self) -> Option<Self::Item> {
