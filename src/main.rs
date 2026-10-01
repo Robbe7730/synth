@@ -6,6 +6,7 @@ use rodio::mixer::Mixer;
 
 mod note;
 mod note_manager;
+mod envelope;
 
 fn midi_callback(_timestamp: u64, data: &[u8], (mixer_mutex, note_mgr_mutex): &mut (Arc<Mutex<Mixer>>, Arc<Mutex<NoteManager>>)) {
     let command: u8 = data[0];

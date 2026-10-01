@@ -1,9 +1,12 @@
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::{sync::{Arc, atomic::{AtomicBool, Ordering}}, time::Duration};
 
-use rodio::{Sample, Source, source::{Amplify, SineWave, Stoppable}};
+use rodio::{Sample, Source, source::{Amplify, SineWave}};
+
+use crate::envelope::Envelope;
 
 pub struct Note {
-    inner: Stoppable<Amplify<SineWave>>,
+    inner: Amplify<SineWave>,
+    envelope: Envelope,
     stop: Arc<AtomicBool>,
 }
 
@@ -15,8 +18,14 @@ impl Note {
     pub fn from_midi(key: u8, velocity: u8, stop: Arc<AtomicBool>) -> Self {
         Note { 
             inner: SineWave::new(midi_key_to_freq(key))
-                .amplify(f32::from(velocity) / 64.0)
-                .stoppable(),
+                .amplify(f32::from(velocity) / 64.0),
+            envelope: Envelope::new(
+                48000,
+                Duration::from_millis(50),
+                Duration::from_millis(300),
+                0.5,
+                Duration::from_millis(400),
+            ),
             stop: stop,
         }
     }
@@ -38,10 +47,6 @@ impl Source for Note {
     fn total_duration(&self) -> Option<std::time::Duration> {
         self.inner.total_duration()
     }
-
-    fn is_exhausted(&self) -> bool {
-        self.stop.load(Ordering::SeqCst)
-    }
 }
 
 impl Iterator for Note {
@@ -49,10 +54,8 @@ impl Iterator for Note {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.stop.load(Ordering::SeqCst) {
-            self.inner.stop();
-            None
-        } else {
-            self.inner.next()
+            self.envelope.release();
         }
+        Some(self.inner.next()? * self.envelope.next()?)
     }
 }
