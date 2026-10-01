@@ -1,12 +1,13 @@
-use std::{error::Error, io::Write, sync::{Arc, Mutex, atomic::AtomicBool}};
+use std::{error::Error, io::Write, sync::{Arc, Mutex}, thread, time::Duration};
 
 use midir::MidiInput;
-use note_source::NoteSource;
+use note_manager::NoteManager;
 use rodio::mixer::Mixer;
 
 mod note_source;
+mod note_manager;
 
-fn midi_callback(_timestamp: u64, data: &[u8], mixer_mutex: &mut Arc<Mutex<Mixer>>) {
+fn midi_callback(_timestamp: u64, data: &[u8], (mixer_mutex, note_mgr): &mut (Arc<Mutex<Mixer>>, Arc<NoteManager>)) {
     let command: u8 = data[0];
     match command {
         0x80 => {
@@ -18,9 +19,8 @@ fn midi_callback(_timestamp: u64, data: &[u8], mixer_mutex: &mut Arc<Mutex<Mixer
             let key = data[1];
             let velocity = data[2];
             println!("Note {} ON with velocity {}", key, velocity);
+            let note = note_mgr.start(key, velocity);
             let mixer = mixer_mutex.lock().unwrap();
-            let flag = Arc::new(AtomicBool::new(false));
-            let note = NoteSource::from_midi(key, velocity, flag);
             mixer.add(note);
         }
         _ => println!("Unknown MIDI command 0x{:02x}", command)
@@ -28,8 +28,12 @@ fn midi_callback(_timestamp: u64, data: &[u8], mixer_mutex: &mut Arc<Mutex<Mixer
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    // Start audio stream
     let stream_handle = rodio::DeviceSinkBuilder::open_default_sink()?;
     let mixer = stream_handle.mixer().to_owned();
+
+    // Create note manager
+    let note_mgr = NoteManager::new();
 
     // Copied from https://github.com/Boddlnagg/midir/blob/master/src/lib.rs
     let mut midi_in = MidiInput::new("midir reading input")?;
@@ -60,19 +64,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let mixer_mutex = Arc::new(Mutex::new(mixer));
+    let note_mgr_mutex = Arc::new(note_mgr);
 
-    let _conn_in = midi_in.connect(
-        in_port,
-        "midir-read-input",
-        midi_callback,
-        mixer_mutex,
-    )?;
+    // let _conn_in = midi_in.connect(
+    //     in_port,
+    //     "midir-read-input",
+    //     midi_callback,
+    //     (mixer_mutex, note_mgr_mutex),
+    // )?;
 
-    // midi_callback(0, &[0x90, 60, 60], &mut mixer_mutex);
+    midi_callback(0, &[0x90, 60, 60], &mut (mixer_mutex.clone(), note_mgr_mutex.clone()));
 
-    // thread::sleep(Duration::from_secs(1));
+    thread::sleep(Duration::from_secs(1));
 
-    // midi_callback(0, &[0x80, 60, 60], &mut mixer_mutex);
+    midi_callback(0, &[0x80, 60, 60], &mut (mixer_mutex, note_mgr_mutex));
 
     loop {}
 }
