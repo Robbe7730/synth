@@ -7,18 +7,21 @@ use rodio::mixer::Mixer;
 mod note_source;
 mod note_manager;
 
-fn midi_callback(_timestamp: u64, data: &[u8], (mixer_mutex, note_mgr): &mut (Arc<Mutex<Mixer>>, Arc<NoteManager>)) {
+fn midi_callback(_timestamp: u64, data: &[u8], (mixer_mutex, note_mgr_mutex): &mut (Arc<Mutex<Mixer>>, Arc<Mutex<NoteManager>>)) {
     let command: u8 = data[0];
     match command {
         0x80 => {
             let key = data[1];
             let velocity = data[2];
             println!("Note {} OFF with velocity {}", key, velocity);
+            let mut note_mgr = note_mgr_mutex.lock().unwrap();
+            note_mgr.stop(key);
         }
         0x90 => {
             let key = data[1];
             let velocity = data[2];
             println!("Note {} ON with velocity {}", key, velocity);
+            let mut note_mgr = note_mgr_mutex.lock().unwrap();
             let note = note_mgr.start(key, velocity);
             let mixer = mixer_mutex.lock().unwrap();
             mixer.add(note);
@@ -64,20 +67,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let mixer_mutex = Arc::new(Mutex::new(mixer));
-    let note_mgr_mutex = Arc::new(note_mgr);
+    let note_mgr_mutex = Arc::new(Mutex::new(note_mgr));
 
-    // let _conn_in = midi_in.connect(
-    //     in_port,
-    //     "midir-read-input",
-    //     midi_callback,
-    //     (mixer_mutex, note_mgr_mutex),
-    // )?;
+    let _conn_in = midi_in.connect(
+        in_port,
+        "midir-read-input",
+        midi_callback,
+        (mixer_mutex, note_mgr_mutex),
+    )?;
 
-    midi_callback(0, &[0x90, 60, 60], &mut (mixer_mutex.clone(), note_mgr_mutex.clone()));
-
-    thread::sleep(Duration::from_secs(1));
-
-    midi_callback(0, &[0x80, 60, 60], &mut (mixer_mutex, note_mgr_mutex));
+    // midi_callback(0, &[0x90, 60, 60], &mut (mixer_mutex.clone(), note_mgr_mutex.clone()));
+    // 
+    // thread::sleep(Duration::from_secs(1));
+    // 
+    // midi_callback(0, &[0x80, 60, 60], &mut (mixer_mutex, note_mgr_mutex));
 
     loop {}
 }
