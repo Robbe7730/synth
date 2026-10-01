@@ -1,13 +1,13 @@
-use std::{error::Error, io::Write};
+use std::{error::Error, io::Write, sync::{Arc, Mutex}};
 
 use midir::MidiInput;
-use rodio::source::SineWave;
+use rodio::{mixer::Mixer, source::SineWave};
 
-fn midi_key_to_freq(key: u8) -> f64 {
-    return f64::powf(2.0, f64::from(i16::from(key) - 69) / 12.0) * 440.0;
+fn midi_key_to_freq(key: u8) -> f32 {
+    return f32::powf(2.0, f32::from(i16::from(key) - 69) / 12.0) * 440.0;
 }
 
-fn midi_callback(_timestamp: u64, data: &[u8], _: &mut ()) {
+fn midi_callback(_timestamp: u64, data: &[u8], mixer_mutex: &mut Arc<Mutex<Mixer>>) {
     let command: u8 = data[0];
     match command {
         0x80 => {
@@ -20,6 +20,8 @@ fn midi_callback(_timestamp: u64, data: &[u8], _: &mut ()) {
             let velocity = data[2];
             let freq = midi_key_to_freq(key);
             println!("Note {} ON with velocity {} f={}", key, velocity, freq);
+            let mixer = mixer_mutex.lock().unwrap();
+            mixer.add(SineWave::new(freq));
         }
         _ => println!("Unknown MIDI command 0x{:02x}", command)
     }
@@ -27,7 +29,7 @@ fn midi_callback(_timestamp: u64, data: &[u8], _: &mut ()) {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let stream_handle = rodio::DeviceSinkBuilder::open_default_sink()?;
-    let mixer = stream_handle.mixer();
+    let mixer = stream_handle.mixer().to_owned();
 
     // Copied from https://github.com/Boddlnagg/midir/blob/master/src/lib.rs
     let mut midi_in = MidiInput::new("midir reading input")?;
@@ -57,16 +59,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     };
 
+    let mixer_mutex = Arc::new(Mutex::new(mixer));
+
     let _conn_in = midi_in.connect(
         in_port,
         "midir-read-input",
         midi_callback,
-        (),
+        mixer_mutex,
     )?;
-
-    mixer.add(
-        SineWave::new(440.0)
-    );
 
     loop {}
 }
