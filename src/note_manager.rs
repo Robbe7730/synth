@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::{Arc, atomic::{AtomicBool, Ordering::Relaxed}}};
+use std::{collections::HashMap, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
 use crate::note_source::NoteSource;
 
@@ -15,7 +15,7 @@ impl NoteManager {
 
     pub fn start(&mut self, key: u8, velocity: u8) -> NoteSource {
         if self.note_flags.contains_key(&key) {
-            self.note_flags.get(&key).unwrap().store(false, Relaxed);
+            self.note_flags.get(&key).unwrap().store(true, Ordering::SeqCst);
         }
 
         let flag = Arc::new(AtomicBool::new(false));
@@ -27,7 +27,7 @@ impl NoteManager {
         let maybe_flag = self.note_flags.get(&key);
 
         if let Some(flag) = maybe_flag {
-            flag.store(true, Relaxed);
+            flag.store(true, Ordering::SeqCst);
         }
     }
 }
