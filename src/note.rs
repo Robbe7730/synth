@@ -18,13 +18,13 @@ impl Note {
     pub fn from_midi(key: u8, velocity: u8, stop: Arc<AtomicBool>) -> Self {
         Note { 
             inner: SineWave::new(midi_key_to_freq(key))
-                .amplify(f32::from(velocity) / 64.0),
+                .amplify(f32::from(velocity) / 128.0),
             envelope: Envelope::new(
                 48000,
-                Duration::from_millis(50),
-                Duration::from_millis(300),
-                0.5,
-                Duration::from_millis(400),
+                Duration::from_millis(1),
+                Duration::from_millis(1000),
+                0.0,
+                Duration::from_millis(500),
             ),
             stop: stop,
         }
