@@ -40,20 +40,22 @@ impl Iterator for Envelope {
     fn next(&mut self) -> Option<Self::Item> {
         self.i += 1;
 
-        if self.i <= self.attack_samples {
-            Some((self.i as f32) / (self.attack_samples as f32))
-        } else if self.i <= (self.attack_samples + self.decay_samples) {
-            Some(1.0 + (self.sustain_level - 1.0) * (self.i - self.attack_samples) as f32 / (self.attack_samples as f32))
-        } else if let Some(rel_start) = self.release_start {
+        if let Some(rel_start) = self.release_start {
             let num_release_samples = self.i - rel_start;
             if num_release_samples > self.release_samples {
                 None
             } else {
-                Some(self.sustain_level * (num_release_samples as f32) / (self.release_samples as f32))
+                Some(self.sustain_level * ((self.release_samples - num_release_samples) as f32) / (self.release_samples as f32))
             }
-        } else {
+        } else if self.i <= self.attack_samples {
+            Some((self.i as f32) / (self.attack_samples as f32))
+        } else if self.i <= (self.attack_samples + self.decay_samples) {
+            let decay_i = (self.i - self.attack_samples) as f32;
+            let decay_percentage = decay_i / (self.decay_samples as f32);
+            Some(self.sustain_level + (1.0 - decay_percentage) * (1.0 - self.sustain_level))
+        }  else {
             Some(self.sustain_level)
-        }
+        } 
     }
 }
 
